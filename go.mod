@@ -1,4 +1,4 @@
-module github.com/kareemsabri/datastore
+module github.com/kareemsabri/go-datastore
 
 go 1.12
 
