@@ -47,12 +47,12 @@ func NewConnection(uri string, seed func(db *sqlx.DB) error) (*Store, error) {
 }
 
 func (s *Store) AddCollection(tableName string) *Collection {
+	if s.Collections == nil {
+		s.Collections = make(map[string]*Collection)
+	}
 	if coll, ok := s.Collections[tableName]; ok {
 		return coll
 	}
-	s.Collections[tableName] = &Collection{
-		s.DB,
-		tableName,
-	}
+	s.Collections[tableName] = NewCollection(s.DB, tableName)
 	return s.Collections[tableName]
 }
