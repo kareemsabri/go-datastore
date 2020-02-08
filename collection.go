@@ -8,10 +8,16 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+const BeforeSelect = "bSELECT"
+const BeforeInsert = "bINSERT"
+const AfterSelect = "aSELECT"
+const AfterInsert = "aINSERT"
+
 //Collection holds a table scoped database connection
 type Collection struct {
-	DB    *sqlx.DB
-	Table string
+	DB        *sqlx.DB
+	Table     string
+	Callbacks map[string][]func(q *Query)
 }
 
 type Query struct {
@@ -21,6 +27,15 @@ type Query struct {
 	limitTo   int
 	orderBy   []string
 	lastID    int
+	err       error
+}
+
+func NewCollection(db *sqlx.DB, tableName string) *Collection {
+	return &Collection{
+		db,
+		tableName,
+		make(map[string][]func(q *Query)),
+	}
 }
 
 func (q *Query) Limit(n int) *Query {
@@ -38,19 +53,38 @@ func (q *Query) GetLastID() int {
 }
 
 func (q *Query) Run(dest interface{}) error {
-	var err error
+	if cbs, ok := q.C.Callbacks["b"+q.queryType]; ok {
+		for _, cb := range cbs {
+			cb(q)
+		}
+	}
+
 	if q.queryType == "SELECT" {
-		err = q.C.doFind(dest, q.criteria, q.limitTo, q.orderBy)
+		q.err = q.C.doFind(dest, q.criteria, q.limitTo, q.orderBy)
 	} else if q.queryType == "INSERT" {
 		if id, e := q.C.doInsert(q.criteria); e != nil {
 			q.lastID = -1
-			err = e
+			q.err = e
 		} else {
 			q.lastID = int(id)
 		}
 	}
 
-	return err
+	if cbs, ok := q.C.Callbacks["a"+q.queryType]; ok {
+		for _, cb := range cbs {
+			cb(q)
+		}
+	}
+
+	return q.err
+}
+
+func (c *Collection) AddCallback(key string, cb func(q *Query)) {
+	if _, ok := c.Callbacks[key]; !ok {
+		c.Callbacks[key] = []func(q *Query){cb}
+	} else {
+		c.Callbacks[key] = append(c.Callbacks[key], cb)
+	}
 }
 
 func (c *Collection) Find(criteria M) *Query {
@@ -61,6 +95,7 @@ func (c *Collection) Find(criteria M) *Query {
 		0,
 		nil,
 		-1,
+		nil,
 	}
 }
 
@@ -76,6 +111,7 @@ func (c *Collection) Insert(from M) *Query {
 		0,
 		nil,
 		-1,
+		nil,
 	}
 }
 
