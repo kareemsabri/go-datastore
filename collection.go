@@ -23,11 +23,11 @@ type Collection struct {
 type Query struct {
 	C         *Collection
 	queryType string
-	criteria  M
+	Criteria  M
 	limitTo   int
 	orderBy   []string
-	lastID    int
-	err       error
+	LastID    int
+	Err       error
 }
 
 func NewCollection(db *sqlx.DB, tableName string) *Collection {
@@ -49,7 +49,7 @@ func (q *Query) Order(by []string) *Query {
 }
 
 func (q *Query) GetLastID() int {
-	return q.lastID
+	return q.LastID
 }
 
 func (q *Query) Run(dest interface{}) error {
@@ -60,13 +60,13 @@ func (q *Query) Run(dest interface{}) error {
 	}
 
 	if q.queryType == "SELECT" {
-		q.err = q.C.doFind(dest, q.criteria, q.limitTo, q.orderBy)
+		q.Err = q.C.doFind(dest, q.Criteria, q.limitTo, q.orderBy)
 	} else if q.queryType == "INSERT" {
-		if id, e := q.C.doInsert(q.criteria); e != nil {
-			q.lastID = -1
-			q.err = e
+		if id, e := q.C.doInsert(q.Criteria); e != nil {
+			q.LastID = -1
+			q.Err = e
 		} else {
-			q.lastID = int(id)
+			q.LastID = int(id)
 		}
 	}
 
@@ -76,7 +76,7 @@ func (q *Query) Run(dest interface{}) error {
 		}
 	}
 
-	return q.err
+	return q.Err
 }
 
 func (c *Collection) AddCallback(key string, cb func(q *Query)) {
@@ -87,11 +87,11 @@ func (c *Collection) AddCallback(key string, cb func(q *Query)) {
 	}
 }
 
-func (c *Collection) Find(criteria M) *Query {
+func (c *Collection) Find(Criteria M) *Query {
 	return &Query{
 		c,
 		"SELECT",
-		criteria,
+		Criteria,
 		0,
 		nil,
 		-1,
@@ -99,8 +99,8 @@ func (c *Collection) Find(criteria M) *Query {
 	}
 }
 
-func (c *Collection) FindOne(criteria M) *Query {
-	return c.Find(criteria).Limit(1)
+func (c *Collection) FindOne(Criteria M) *Query {
+	return c.Find(Criteria).Limit(1)
 }
 
 func (c *Collection) Insert(from M) *Query {
@@ -115,15 +115,15 @@ func (c *Collection) Insert(from M) *Query {
 	}
 }
 
-func (c *Collection) doFind(dest interface{}, criteria M, limit int, orderBy []string) error {
-	qp := make([]string, 0, len(criteria))
-	values := make([]interface{}, 0, len(criteria))
-	for k := range criteria {
+func (c *Collection) doFind(dest interface{}, Criteria M, limit int, orderBy []string) error {
+	qp := make([]string, 0, len(Criteria))
+	values := make([]interface{}, 0, len(Criteria))
+	for k := range Criteria {
 		qp = append(qp, k+"=?")
-		values = append(values, criteria[k])
+		values = append(values, Criteria[k])
 	}
 	query := "SELECT * FROM " + c.Table
-	if len(criteria) > 0 {
+	if len(Criteria) > 0 {
 		query = query + " WHERE " + strings.Join(qp, " AND ")
 	}
 	if limit > 0 {
@@ -133,7 +133,7 @@ func (c *Collection) doFind(dest interface{}, criteria M, limit int, orderBy []s
 		query += " ORDER BY " + strings.Join(orderBy, ", ")
 	}
 	log.Println(query)
-	log.Println(criteria)
+	log.Println(Criteria)
 	if limit == 1 {
 		return c.DB.Get(dest, c.DB.Rebind(query), values...)
 	}
@@ -150,7 +150,7 @@ func (c *Collection) doInsert(from M) (int64, error) {
 		values = append(values, v)
 	}
 
-	query := `INSERT INTO ` + c.Table + `
+	query := `INSERT INTO ` + c.Table + ` 
 	(` + strings.Join(fields, ",") + `)
 	VALUES
 	(` + strings.Join(placeholders, ",") + `) 
@@ -158,6 +158,7 @@ func (c *Collection) doInsert(from M) (int64, error) {
 
 	var id int64
 	query = c.DB.Rebind(query)
+	log.Println("query: " + query)
 	err := c.DB.QueryRow(query, values...).Scan(&id)
 	if err != nil {
 		log.Println("sql error: " + err.Error())
